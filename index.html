@@ -2,6 +2,7 @@
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Chat de Gírias Brasileiras</title>
   <style>
     body {
@@ -11,14 +12,16 @@
       padding: 0;
     }
     .chat-container {
+      width: 100%;
       max-width: 600px;
-      margin: 50px auto;
+      margin: 20px auto;
       background: white;
       border-radius: 8px;
       box-shadow: 0 0 10px #ccc;
       overflow: hidden;
       display: flex;
       flex-direction: column;
+      height: 90vh;
     }
     .chat-header {
       background: #1e88e5;
@@ -31,7 +34,6 @@
       flex-grow: 1;
       padding: 15px;
       overflow-y: auto;
-      height: 400px;
     }
     .chat-input {
       display: flex;
@@ -68,6 +70,22 @@
       height: 250px;
       margin-top: 10px;
     }
+
+    @media (max-width: 480px) {
+      .chat-container {
+        margin: 10px;
+        height: 95vh;
+      }
+
+      .chat-input input {
+        font-size: 14px;
+      }
+
+      .chat-input button {
+        font-size: 14px;
+        padding: 0 10px;
+      }
+    }
   </style>
 </head>
 <body>
@@ -81,7 +99,7 @@
   </div>
 
   <script>
-    const apiKey = "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";
+    const API_ENDPOINT = "https://seu-backend.vercel.app/api/chat"; // 🔁 Substitua pelo endpoint real
 
     async function sendMessage() {
       const input = document.getElementById("userInput");
@@ -103,22 +121,22 @@ Formato:
 - Vídeo: https://youtube.com/...
       `;
 
-      const response = await fetch("https://api.openai.com/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${apiKey}`,
-        },
-        body: JSON.stringify({
-          model: "gpt-3.5-turbo",
-          messages: [{ role: "user", content: prompt }],
-        }),
-      });
+      try {
+        const response = await fetch(API_ENDPOINT, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ prompt }),
+        });
 
-      const data = await response.json();
-      const reply = data.choices?.[0]?.message?.content;
-
-      appendMessage("bot", reply);
+        const data = await response.json();
+        const reply = data.choices?.[0]?.message?.content || "❌ Erro na resposta.";
+        appendMessage("bot", reply);
+      } catch (error) {
+        appendMessage("bot", "❌ Erro ao conectar com o servidor.");
+        console.error(error);
+      }
     }
 
     function appendMessage(role, text) {
