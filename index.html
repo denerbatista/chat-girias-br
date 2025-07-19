@@ -124,18 +124,23 @@
         document.getElementById("loading").style.display = "block";
 
         const prompt = `
-Responda sobre a gíria brasileira "${text}" com:
-1. Um significado claro e informal da gíria
-2. A possível origem ou região onde é mais usada
-3. Um link de vídeo explicativo do YouTube com incorporação permitida (embed liberado). 
-Evite vídeos privados, restritos ou com incorporação desativada. 
-Se não encontrar um vídeo válido, responda com "Nenhum vídeo disponível".
+Analise a palavra "${text}" e responda de acordo com os seguintes critérios:
 
-Formato da resposta:
+1. Verifique se é uma **gíria brasileira**. Se for, forneça:
+   - Um significado claro e informal
+   - A possível origem ou região onde é mais usada
+   - Um link de vídeo explicativo do YouTube com incorporação permitida (embed liberado). Se não encontrar vídeo válido, escreva "Nenhum vídeo disponível".
+
+2. Se a palavra for **uma palavra comum do português**, diga claramente que **não é uma gíria**, mas forneça o seu significado formal.
+
+3. Se a palavra **não existir ou for inválida**, diga claramente que **não é reconhecida como uma palavra válida da língua portuguesa**.
+
+Responda sempre de forma clara e separada por seções:
+- Tipo: (Gíria / Palavra comum / Palavra inválida)
 - Significado: ...
 - Origem: ...
-- Vídeo: https://youtube.com/...
-      `;
+- Vídeo: ...
+`;
 
         try {
           const response = await fetch(API_ENDPOINT, {
