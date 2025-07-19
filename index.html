@@ -101,15 +101,15 @@
   <script>
     const API_ENDPOINT = "https://chat-girias-br.onrender.com/api/chat"; // 🔁 Substitua pelo endpoint real
 
-    async function sendMessage() {
-      const input = document.getElementById("userInput");
-      const text = input.value.trim();
-      if (!text) return;
+   async function sendMessage() {
+  const input = document.getElementById("userInput");
+  const text = input.value.trim();
+  if (!text) return;
 
-      appendMessage("user", text);
-      input.value = "";
+  appendMessage("user", text);
+  input.value = "";
 
-      const prompt = `
+  const prompt = `
 Responda sobre a gíria brasileira "${text}" com:
 1. Significado claro
 2. Origem da gíria (história ou região)
@@ -119,25 +119,37 @@ Formato:
 - Significado: ...
 - Origem: ...
 - Vídeo: https://youtube.com/...
-      `;
+  `;
 
-      try {
-        const response = await fetch(API_ENDPOINT, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ prompt }),
-        });
+  try {
+    const response = await fetch("https://chat-girias-br.onrender.com/api/chat", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ prompt }),
+    });
 
-        const data = await response.json();
-        const reply = data.choices?.[0]?.message?.content || "❌ Erro na resposta.";
-        appendMessage("bot", reply);
-      } catch (error) {
-        appendMessage("bot", "❌ Erro ao conectar com o servidor.");
-        console.error(error);
-      }
+    const data = await response.json();
+    console.log("🔍 RESPOSTA COMPLETA:", data);
+
+    let reply;
+    if (data.choices?.[0]?.message?.content) {
+      reply = data.choices[0].message.content;
+    } else if (data.error?.message) {
+      reply = `❌ Erro da API: ${data.error.message}`;
+    } else {
+      reply = "❌ Erro desconhecido na resposta.";
     }
+
+    appendMessage("bot", reply);
+
+  } catch (error) {
+    console.error("Erro na requisição:", error);
+    appendMessage("bot", "❌ Erro ao conectar com o servidor.");
+  }
+}
+
 
     function appendMessage(role, text) {
       const messages = document.getElementById("messages");
