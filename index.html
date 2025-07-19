@@ -207,5 +207,22 @@ Formato da resposta:
         return `<div style="line-height: 1.6; font-size: 16px; font-family: sans-serif;">${formatted}</div>`;
       }
     </script>
+    <script>
+      if ("serviceWorker" in navigator) {
+        window.addEventListener("load", () => {
+          navigator.serviceWorker
+            .register("./service-worker.js")
+            .then((registration) => {
+              console.log(
+                "✅ Service Worker registrado com sucesso:",
+                registration.scope
+              );
+            })
+            .catch((err) => {
+              console.error("❌ Falha ao registrar o Service Worker:", err);
+            });
+        });
+      }
+    </script>
   </body>
 </html>
