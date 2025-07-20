@@ -116,35 +116,20 @@
             body: JSON.stringify({ prompt }),
           });
 
-          let data;
-          try {
-            data = await response.json();
-          } catch (e) {
-            console.error("Erro ao converter resposta JSON:", e);
-            appendMessage(
-              "bot",
-              "❌ Erro ao interpretar a resposta do servidor."
-            );
-            return;
-          }
-
-          if (data.error) {
-            console.error("Erro retornado da API:", data.error);
-            appendMessage("bot", `❌ Erro da API: ${data.error}`);
-            return;
-          }
+          const data = await response.json();
 
           if (data.message) {
             appendMessage("bot", data.message);
           }
 
           if (data.videoUrl) {
+            appendMessage("bot", "🎬 Gerando vídeo, aguarde...");
             appendMessage(
               "bot",
               `<iframe src="${data.videoUrl}" allow="autoplay" allowfullscreen></iframe>`
             );
           } else {
-            appendMessage("bot", "⚠️ Nenhum vídeo gerado.");
+            appendMessage("bot", "⚠️ O vídeo não pôde ser carregado.");
           }
         } catch (error) {
           console.error("Erro:", error);

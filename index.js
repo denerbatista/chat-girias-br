@@ -12,6 +12,26 @@ app.use(express.json());
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const DID_API_KEY = process.env.DID_API_KEY;
 
+const waitForVideoReady = async (id, maxRetries = 10, interval = 3000) => {
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    const checkRes = await fetch(`https://api.d-id.com/talks/${id}`, {
+      headers: {
+        Authorization: `Bearer ${DID_API_KEY}`,
+      },
+    });
+
+    const data = await checkRes.json();
+
+    if (data?.status === "done") {
+      return `https://studio.d-id.com/player/${id}`;
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, interval));
+  }
+
+  return null; // Falhou após N tentativas
+};
+
 app.post("/api/chat", async (req, res) => {
   const { prompt } = req.body;
 
@@ -20,8 +40,8 @@ app.post("/api/chat", async (req, res) => {
   }
 
   try {
-    // Etapa 1: Obter explicação da OpenAI
-    const openaiResponse = await fetch("https://api.openai.com/v1/chat/completions", {
+    // 1. Obter explicação do GPT
+    const openaiRes = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -31,15 +51,15 @@ app.post("/api/chat", async (req, res) => {
         model: "gpt-4o",
         messages: [{ role: "user", content: prompt }],
         temperature: 0.7,
-        max_tokens: 500,
+        max_tokens: 800,
       }),
     });
 
-    const aiData = await openaiResponse.json();
-    const explanation = aiData.choices?.[0]?.message?.content || "Não foi possível gerar explicação.";
+    const openaiData = await openaiRes.json();
+    const explanation = openaiData.choices?.[0]?.message?.content || "Não consegui gerar explicação.";
 
-    // Etapa 2: Criar vídeo com D-ID
-    const didResponse = await fetch("https://api.d-id.com/talks", {
+    // 2. Criar vídeo na D-ID
+    const didRes = await fetch("https://api.d-id.com/talks", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -51,25 +71,29 @@ app.post("/api/chat", async (req, res) => {
           input: explanation,
           provider: {
             type: "builtin",
-            voice_id: "brazilian_portuguese_male" // ou use outro voice_id válido
+            voice_id: "brazilian_portuguese_male",
           },
         },
-        source_url: "https://create-images-results.d-id.com/DefaultPresenters/Noelle.jpg"
+        source_url: "https://create-images-results.d-id.com/DefaultPresenters/Noelle.jpg",
       }),
     });
 
-    const videoData = await didResponse.json();
-    const videoUrl = `https://studio.d-id.com/player/${videoData.id}`;
+    const didData = await didRes.json();
+    const videoId = didData?.id;
 
-    // Retornar texto e link do vídeo
-    return res.json({
+    let videoUrl = null;
+
+    if (videoId) {
+      videoUrl = await waitForVideoReady(videoId);
+    }
+
+    res.json({
       message: explanation,
       videoUrl,
     });
-
   } catch (err) {
     console.error("Erro no backend:", err);
-    return res.status(500).json({ error: "Erro no servidor", detail: err.message });
+    res.status(500).json({ error: "Erro interno", detail: err.message });
   }
 });
 
