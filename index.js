@@ -3,6 +3,12 @@ import cors from "cors";
 import bodyParser from "body-parser";
 import dotenv from "dotenv";
 import fetch from "node-fetch";
+import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
+import { dirname } from "path";
+import { v4 as uuidv4 } from "uuid";
+import gTTS from "gtts";
 
 dotenv.config();
 
@@ -11,12 +17,13 @@ app.use(cors());
 app.use(bodyParser.json());
 
 const PORT = process.env.PORT || 3001;
-const OPENAI_KEY = process.env.OPENAI_KEY;
-const D_ID_API_KEY = process.env.DID_API_KEY;
-const D_ID_URL = "https://api.d-id.com";
-const D_ID_AUDIO_ENDPOINT = "/tts";
+const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 
-// 🧠 Rota de geração de texto
+// Para funcionar com ES Modules
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
+// 🧠 Rota de geração de texto (sem alterações)
 app.post("/api/chat", async (req, res) => {
   const { prompt } = req.body;
   console.log("🔹 [CHAT] Prompt recebido:", prompt);
@@ -25,7 +32,7 @@ app.post("/api/chat", async (req, res) => {
     const response = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${OPENAI_KEY}`,
+        Authorization: `Bearer ${OPENAI_API_KEY}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
@@ -40,7 +47,7 @@ app.post("/api/chat", async (req, res) => {
 
     const message = data?.choices?.[0]?.message?.content;
     if (!message) {
-      console.warn("⚠️ [CHAT] Nenhuma mensagem encontrada na resposta.");
+      console.warn("⚠️ [CHAT] Nenhuma mensagem encontrada.");
       return res.status(500).json({ error: "Resposta inválida da OpenAI." });
     }
 
@@ -51,38 +58,35 @@ app.post("/api/chat", async (req, res) => {
   }
 });
 
-// 🔊 Rota de geração de áudio
+// 🔊 Rota de geração de áudio com GTTS
 app.post("/api/audio", async (req, res) => {
   const { text } = req.body;
   console.log("🔹 [AUDIO] Texto recebido para áudio:", text);
 
   try {
-    const response = await fetch(`${D_ID_URL}${D_ID_AUDIO_ENDPOINT}`, {
-      method: "POST",
-      headers: {
-        "x-api-key": D_ID_API_KEY,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        text,
-        voice: "linda", // ou outra voz disponível
-      }),
+    const fileName = `audio-${uuidv4()}.mp3`;
+    const audioDir = path.join(__dirname, "audios");
+    const filePath = path.join(audioDir, fileName);
+
+    fs.mkdirSync(audioDir, { recursive: true });
+
+    const gtts = new gTTS(text, "pt");
+    gtts.save(filePath, (err) => {
+      if (err) {
+        console.error("❌ [AUDIO] Erro ao salvar MP3:", err);
+        return res.status(500).json({ error: "Erro ao salvar áudio." });
+      }
+      console.log("✅ [AUDIO] Áudio salvo:", filePath);
+      return res.json({ audioUrl: `/audios/${fileName}` });
     });
-
-    const result = await response.json();
-    console.log("✅ [AUDIO] Resposta da D-ID:", result);
-
-    if (result?.audioUrl) {
-      return res.json({ audioUrl: result.audioUrl });
-    } else {
-      console.warn("⚠️ [AUDIO] Nenhum audioUrl encontrado.");
-      return res.status(500).json({ error: "URL de áudio não recebida." });
-    }
   } catch (error) {
     console.error("❌ [AUDIO] Erro ao gerar áudio:", error);
     return res.status(500).json({ error: error.message });
   }
 });
+
+// 🗂 Servir os áudios salvos
+app.use("/audios", express.static(path.join(__dirname, "audios")));
 
 app.listen(PORT, () => {
   console.log(`🚀 Servidor rodando em http://localhost:${PORT}`);

@@ -136,18 +136,27 @@
           appendMessage("bot", "🔊 Gerando áudio...");
 
           console.log("🔊 Enviando para /api/audio:", message);
-          const res2 = await fetch(API_AUDIO, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ text: message }),
-          });
+          const res2 = await fetch(
+            "https://chat-girias-br.onrender.com/api/audio",
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ text: message }),
+            }
+          );
+
+          const { audioUrl } = await res2.json();
+          if (audioUrl) {
+            appendMessage("bot", `<audio controls src="${audioUrl}"></audio>`);
+          }
 
           const data2 = await res2.json();
           console.log("🎧 Resposta de /api/audio:", data2);
+          
 
-          const audioUrl = data2?.audioUrl;
-          if (audioUrl) {
-            appendMessage("bot", `<audio controls src="${audioUrl}"></audio>`);
+          const finalAudioUrl  = data2?.audioUrl;
+          if (finalAudioUrl) {
+            appendMessage("bot", `<audio controls src="${finalAudioUrl}"></audio>`);
           } else {
             console.warn("⚠️ Nenhum URL de áudio recebido.");
             appendMessage("bot", "⚠️ O áudio não foi gerado.");
