@@ -13,44 +13,30 @@ const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const DID_API_KEY = process.env.DID_API_KEY;
 
 const waitForVideoReady = async (id, maxRetries = 10, interval = 3000) => {
-  console.log("⏳ Iniciando verificação de status do vídeo D-ID...");
   for (let attempt = 0; attempt < maxRetries; attempt++) {
-    console.log(`🔁 Tentativa ${attempt + 1} de ${maxRetries}`);
     try {
-      const checkRes = await fetch(`https://api.d-id.com/talks/${id}`, {
-        headers: {
-          Authorization: `Bearer ${DID_API_KEY}`,
-        },
+      const res = await fetch(`https://api.d-id.com/talks/${id}`, {
+        headers: { Authorization: `Bearer ${DID_API_KEY}` },
       });
-
-      const data = await checkRes.json();
-      console.log("📦 Status atual:", data.status);
-
+      const data = await res.json();
       if (data?.status === "done") {
         return `https://studio.d-id.com/player/${id}`;
       }
     } catch (err) {
-      console.warn("⚠️ Erro ao verificar status do vídeo:", err.message);
+      console.warn("Erro ao verificar status:", err.message);
     }
-
-    await new Promise((resolve) => setTimeout(resolve, interval));
+    await new Promise((r) => setTimeout(r, interval));
   }
-
   return null;
 };
 
+// 1. Explicação
 app.post("/api/chat", async (req, res) => {
   const { prompt } = req.body;
-
-  if (!prompt) {
-    return res.status(400).json({ error: "Prompt é obrigatório." });
-  }
+  if (!prompt) return res.status(400).json({ error: "Prompt ausente" });
 
   try {
-    console.log("💬 Recebido prompt:", prompt);
-
-    // Etapa 1: Obter resposta do GPT
-    const openaiRes = await fetch("https://api.openai.com/v1/chat/completions", {
+    const response = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -64,13 +50,23 @@ app.post("/api/chat", async (req, res) => {
       }),
     });
 
-    const openaiData = await openaiRes.json();
-    const explanation = openaiData.choices?.[0]?.message?.content || "Não consegui gerar explicação.";
+    const data = await response.json();
+    const explanation = data.choices?.[0]?.message?.content || "Não consegui explicar.";
 
-    console.log("✅ Resposta da OpenAI:", explanation);
+    res.json({ message: explanation });
+  } catch (err) {
+    console.error("Erro no /chat:", err.message);
+    res.status(500).json({ error: "Erro na OpenAI", detail: err.message });
+  }
+});
 
-    // Etapa 2: Criar vídeo D-ID
-    const didRes = await fetch("https://api.d-id.com/talks", {
+// 2. Vídeo
+app.post("/api/video", async (req, res) => {
+  const { script } = req.body;
+  if (!script) return res.status(400).json({ error: "Script ausente" });
+
+  try {
+    const response = await fetch("https://api.d-id.com/talks", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -79,7 +75,7 @@ app.post("/api/chat", async (req, res) => {
       body: JSON.stringify({
         script: {
           type: "text",
-          input: explanation,
+          input: script,
           provider: {
             type: "builtin",
             voice_id: "brazilian_portuguese_male",
@@ -89,34 +85,20 @@ app.post("/api/chat", async (req, res) => {
       }),
     });
 
-    const didData = await didRes.json();
-    const videoId = didData?.id;
+    const data = await response.json();
+    const videoId = data.id;
 
-    console.log("🎥 ID do vídeo criado:", videoId);
-
-    let videoUrl = null;
-
-    if (videoId) {
-      videoUrl = await waitForVideoReady(videoId);
-    }
-
-    if (!videoUrl) {
-      console.warn("⚠️ Vídeo não ficou pronto a tempo.");
+    const videoUrl = await waitForVideoReady(videoId);
+    if (videoUrl) {
+      res.json({ videoUrl });
     } else {
-      console.log("✅ Vídeo disponível em:", videoUrl);
+      res.status(504).json({ error: "Vídeo não ficou pronto a tempo." });
     }
-
-    res.json({
-      message: explanation,
-      videoUrl,
-    });
   } catch (err) {
-    console.error("❌ Erro geral:", err);
-    res.status(500).json({ error: "Erro interno", detail: err.message });
+    console.error("Erro no /video:", err.message);
+    res.status(500).json({ error: "Erro ao gerar vídeo", detail: err.message });
   }
 });
 
 const PORT = process.env.PORT || 3001;
-app.listen(PORT, () => {
-  console.log(`🚀 Servidor rodando em http://localhost:${PORT}`);
-});
+app.listen(PORT, () => console.log(`🚀 API rodando na porta ${PORT}`));

@@ -96,7 +96,8 @@
     </div>
 
     <script>
-      const API_ENDPOINT = "https://chat-girias-br.onrender.com/api/chat";
+      const API_CHAT = "https://chat-girias-br.onrender.com/api/chat";
+      const API_VIDEO = "https://chat-girias-br.onrender.com/api/video";
 
       async function sendMessage() {
         const input = document.getElementById("userInput");
@@ -110,33 +111,39 @@
         const prompt = `Explique de forma descontraída e informal o significado da gíria brasileira: "${text}". Inclua um exemplo e mantenha um tom divertido.`;
 
         try {
-          console.log("📤 Enviando prompt:", prompt);
-
-          const response = await fetch(API_ENDPOINT, {
+          console.log("📤 Enviando para /api/chat");
+          const res1 = await fetch(API_CHAT, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ prompt }),
           });
 
-          const data = await response.json();
-          console.log("📥 Resposta recebida:", data);
+          const { message } = await res1.json();
+          appendMessage("bot", message);
 
-          if (data.message) {
-            appendMessage("bot", data.message);
-          }
+          // Agora chama o vídeo
+          appendMessage("bot", "⏳ Gerando vídeo...");
+          console.log("🎥 Enviando para /api/video");
 
-          if (data.videoUrl) {
-            appendMessage("bot", "🎬 Vídeo gerado com sucesso:");
+          const res2 = await fetch(API_VIDEO, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ script: message }),
+          });
+
+          const { videoUrl } = await res2.json();
+
+          if (videoUrl) {
             appendMessage(
               "bot",
-              `<iframe src="${data.videoUrl}" allow="autoplay" allowfullscreen></iframe>`
+              `<iframe src="${videoUrl}" allow="autoplay" allowfullscreen></iframe>`
             );
           } else {
-            appendMessage("bot", "⚠️ A explicação foi gerada, mas o vídeo não ficou pronto.");
+            appendMessage("bot", "⚠️ O vídeo não ficou pronto.");
           }
-        } catch (error) {
-          console.error("❌ Erro:", error);
-          appendMessage("bot", `❌ Erro: ${error.message}`);
+        } catch (err) {
+          console.error("❌ Erro geral:", err.message);
+          appendMessage("bot", `❌ Erro: ${err.message}`);
         } finally {
           document.getElementById("loading").style.display = "none";
         }
