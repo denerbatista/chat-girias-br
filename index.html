@@ -116,7 +116,23 @@
             body: JSON.stringify({ prompt }),
           });
 
-          const data = await response.json();
+          let data;
+          try {
+            data = await response.json();
+          } catch (e) {
+            console.error("Erro ao converter resposta JSON:", e);
+            appendMessage(
+              "bot",
+              "❌ Erro ao interpretar a resposta do servidor."
+            );
+            return;
+          }
+
+          if (data.error) {
+            console.error("Erro retornado da API:", data.error);
+            appendMessage("bot", `❌ Erro da API: ${data.error}`);
+            return;
+          }
 
           if (data.message) {
             appendMessage("bot", data.message);
