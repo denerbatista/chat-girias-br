@@ -98,7 +98,6 @@
         <button onclick="sendMessage()">Enviar</button>
       </div>
     </div>
-
     <script>
       const API_CHAT = "https://chat-girias-br.onrender.com/api/chat";
       const API_AUDIO = "https://chat-girias-br.onrender.com/api/audio";
@@ -135,26 +134,23 @@
           appendMessage("bot", message);
           appendMessage("bot", "🔊 Gerando áudio...");
 
-          console.log("🔊 Enviando para /api/audio:", message);
+          console.log("🎤 Enviando texto para /api/audio:", message);
+
           const res2 = await fetch(API_AUDIO, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ text: message }),
           });
 
-          const data2 = await res2.json(); // ✅ só um json() aqui!
-          console.log("🎧 Resposta de /api/audio:", data2);
-
-          const audioUrl = data2?.audioUrl;
-          if (audioUrl) {
-            appendMessage(
-              "bot",
-              `<audio controls autoplay src="${audioUrl}"></audio>`
-            );
-          } else {
-            console.warn("⚠️ Nenhum URL de áudio recebido.");
-            appendMessage("bot", "⚠️ O áudio não foi gerado.");
+          if (!res2.ok) {
+            throw new Error("Erro ao gerar áudio. Status: " + res2.status);
           }
+
+          const blob = await res2.blob();
+          const audioUrl = URL.createObjectURL(blob);
+          console.log("🎧 Áudio recebido:", audioUrl);
+
+          appendMessage("bot", `<audio controls src="${audioUrl}"></audio>`);
         } catch (err) {
           console.error("❌ Erro geral:", err);
           appendMessage("bot", `❌ Erro: ${err.message}`);

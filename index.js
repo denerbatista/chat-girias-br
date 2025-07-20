@@ -3,12 +3,6 @@ import cors from "cors";
 import bodyParser from "body-parser";
 import dotenv from "dotenv";
 import fetch from "node-fetch";
-import fs from "fs";
-import path from "path";
-import { fileURLToPath } from "url";
-import { dirname } from "path";
-import pkg from "uuid";
-const { v4: uuidv4 } = pkg;
 import gTTS from "gtts";
 
 dotenv.config();
@@ -20,43 +14,21 @@ app.use(bodyParser.json());
 const PORT = process.env.PORT || 3001;
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 
-// 🔁 Suporte para __dirname em ES Modules
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
+const cache = {}; // memória temporária para evitar requisições duplicadas
 
-// 📦 Arquivo de cache
-const CACHE_FILE = path.join(__dirname, "cache", "responses.json");
-
-// 🔧 Inicializa pasta e cache se não existir
-fs.mkdirSync(path.dirname(CACHE_FILE), { recursive: true });
-if (!fs.existsSync(CACHE_FILE)) {
-  fs.writeFileSync(CACHE_FILE, JSON.stringify({}));
-}
-
-// 📂 Funções de leitura e escrita no cache
-function loadCache() {
-  const data = fs.readFileSync(CACHE_FILE);
-  return JSON.parse(data);
-}
-
-function saveToCache(prompt, message, fileName) {
-  const cache = loadCache();
-  cache[prompt] = { message, fileName };
-  fs.writeFileSync(CACHE_FILE, JSON.stringify(cache, null, 2));
-}
-
-// 🧠 Geração de texto com OpenAI
+// 🔹 ROTA /api/chat
 app.post("/api/chat", async (req, res) => {
   const { prompt } = req.body;
-  console.log("🔹 [CHAT] Prompt recebido:", prompt);
+  console.log("📩 [CHAT] Prompt recebido:", prompt);
 
-  const cache = loadCache();
-  if (cache[prompt]?.message) {
-    console.log("♻️ [CHAT] Resposta encontrada no cache.");
-    return res.json({ message: cache[prompt].message });
+  // Verifica se já existe resposta no cache
+  if (cache[prompt]) {
+    console.log("📦 [CHAT] Cache HIT - reutilizando resposta");
+    return res.json({ message: cache[prompt] });
   }
 
   try {
+    console.log("📤 [CHAT] Enviando requisição para OpenAI...");
     const response = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -71,14 +43,18 @@ app.post("/api/chat", async (req, res) => {
     });
 
     const data = await response.json();
-    console.log("✅ [CHAT] Resposta da OpenAI:", data);
+    console.log("📥 [CHAT] Resposta recebida da OpenAI:", data);
 
     const message = data?.choices?.[0]?.message?.content;
     if (!message) {
-      console.warn("⚠️ [CHAT] Nenhuma mensagem encontrada.");
+      console.warn("⚠️ [CHAT] Nenhuma mensagem válida retornada.");
       return res.status(500).json({ error: "Resposta inválida da OpenAI." });
     }
 
+    // Salva no cache
+    cache[prompt] = message;
+
+    console.log("✅ [CHAT] Enviando resposta ao cliente.");
     return res.json({ message });
   } catch (error) {
     console.error("❌ [CHAT] Erro:", error);
@@ -86,48 +62,42 @@ app.post("/api/chat", async (req, res) => {
   }
 });
 
-// 🔊 Geração de áudio com GTTS e cache
-app.post("/api/audio", async (req, res) => {
+// 🔊 ROTA /api/audio (streaming direto)
+app.post("/api/audio", (req, res) => {
   const { text } = req.body;
-  console.log("🔹 [AUDIO] Texto recebido para áudio:", text);
-
-  const cache = loadCache();
-  const prompt = Object.keys(cache).find((key) => cache[key].message === text);
-  if (prompt && cache[prompt]?.fileName) {
-    console.log("♻️ [AUDIO] Áudio encontrado no cache:", cache[prompt].fileName);
-    return res.json({ audioUrl: `/audios/${cache[prompt].fileName}` });
-  }
+  console.log("🎤 [AUDIO] Texto recebido para áudio:", text);
 
   try {
-    const fileName = `audio-${uuidv4()}.mp3`;
-    const audioDir = path.join(__dirname, "audios");
-    const filePath = path.join(audioDir, fileName);
-
-    fs.mkdirSync(audioDir, { recursive: true });
-
     const gtts = new gTTS(text, "pt");
-    gtts.save(filePath, (err) => {
-      if (err) {
-        console.error("❌ [AUDIO] Erro ao salvar MP3:", err);
-        return res.status(500).json({ error: "Erro ao salvar áudio." });
-      }
 
-      if (prompt) {
-        saveToCache(prompt, text, fileName);
-      }
-
-      console.log("✅ [AUDIO] Áudio gerado e salvo:", fileName);
-      return res.json({ audioUrl: `/audios/${fileName}` });
+    // Configura cabeçalhos
+    res.set({
+      "Content-Type": "audio/mpeg",
+      "Content-Disposition": "inline; filename=audio.mp3",
     });
+
+    console.log("🎧 [AUDIO] Iniciando stream de áudio para o cliente...");
+
+    const stream = gtts.stream();
+
+    // Logs de eventos do stream
+    stream.on("error", (err) => {
+      console.error("❌ [AUDIO] Erro durante o stream:", err);
+      res.status(500).json({ error: "Erro ao gerar áudio." });
+    });
+
+    stream.on("end", () => {
+      console.log("✅ [AUDIO] Stream de áudio finalizado com sucesso.");
+    });
+
+    stream.pipe(res); // Envia direto sem salvar
   } catch (error) {
-    console.error("❌ [AUDIO] Erro:", error);
+    console.error("❌ [AUDIO] Erro ao processar áudio:", error);
     return res.status(500).json({ error: error.message });
   }
 });
 
-// 🌐 Servir arquivos estáticos de áudio
-app.use("/audios", express.static(path.join(__dirname, "audios")));
-
+// 🚀 Iniciar servidor
 app.listen(PORT, () => {
-  console.log(`🚀 Servidor rodando em http://localhost:${PORT}`);
+  console.log(`🌐 Servidor rodando em: http://localhost:${PORT}`);
 });
