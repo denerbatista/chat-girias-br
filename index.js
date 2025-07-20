@@ -1,5 +1,4 @@
 import express from "express";
-import fetch from "node-fetch";
 import cors from "cors";
 import dotenv from "dotenv";
 
@@ -9,28 +8,24 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
-const DID_API_KEY = process.env.DID_API_KEY;
+// 🔊 Rota para gerar link de áudio com fala (TTS)
+app.post("/api/audio", async (req, res) => {
+  const { text } = req.body;
+  if (!text) return res.status(400).json({ error: "Texto ausente" });
 
-const waitForVideoReady = async (id, maxRetries = 10, interval = 3000) => {
-  for (let attempt = 0; attempt < maxRetries; attempt++) {
-    try {
-      const res = await fetch(`https://api.d-id.com/talks/${id}`, {
-        headers: { Authorization: `Bearer ${DID_API_KEY}` },
-      });
-      const data = await res.json();
-      if (data?.status === "done") {
-        return `https://studio.d-id.com/player/${id}`;
-      }
-    } catch (err) {
-      console.warn("Erro ao verificar status:", err.message);
-    }
-    await new Promise((r) => setTimeout(r, interval));
+  try {
+    const audioUrl = `https://translate.google.com/translate_tts?ie=UTF-8&q=${encodeURIComponent(
+      text
+    )}&tl=pt-BR&client=tw-ob`;
+
+    res.json({ audioUrl });
+  } catch (err) {
+    console.error("Erro ao gerar áudio:", err.message);
+    res.status(500).json({ error: "Erro ao gerar áudio", detail: err.message });
   }
-  return null;
-};
+});
 
-// 1. Explicação
+// 🧠 Rota de chat com OpenAI
 app.post("/api/chat", async (req, res) => {
   const { prompt } = req.body;
   if (!prompt) return res.status(400).json({ error: "Prompt ausente" });
@@ -40,7 +35,7 @@ app.post("/api/chat", async (req, res) => {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${OPENAI_API_KEY}`,
+        Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
       },
       body: JSON.stringify({
         model: "gpt-4o",
@@ -51,52 +46,11 @@ app.post("/api/chat", async (req, res) => {
     });
 
     const data = await response.json();
-    const explanation = data.choices?.[0]?.message?.content || "Não consegui explicar.";
-
-    res.json({ message: explanation });
+    const message = data.choices?.[0]?.message?.content || "Não consegui explicar.";
+    res.json({ message });
   } catch (err) {
     console.error("Erro no /chat:", err.message);
     res.status(500).json({ error: "Erro na OpenAI", detail: err.message });
-  }
-});
-
-// 2. Vídeo
-app.post("/api/video", async (req, res) => {
-  const { script } = req.body;
-  if (!script) return res.status(400).json({ error: "Script ausente" });
-
-  try {
-    const response = await fetch("https://api.d-id.com/talks", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${DID_API_KEY}`,
-      },
-      body: JSON.stringify({
-        script: {
-          type: "text",
-          input: script,
-          provider: {
-            type: "builtin",
-            voice_id: "brazilian_portuguese_male",
-          },
-        },
-        source_url: "https://create-images-results.d-id.com/DefaultPresenters/Noelle.jpg",
-      }),
-    });
-
-    const data = await response.json();
-    const videoId = data.id;
-
-    const videoUrl = await waitForVideoReady(videoId);
-    if (videoUrl) {
-      res.json({ videoUrl });
-    } else {
-      res.status(504).json({ error: "Vídeo não ficou pronto a tempo." });
-    }
-  } catch (err) {
-    console.error("Erro no /video:", err.message);
-    res.status(500).json({ error: "Erro ao gerar vídeo", detail: err.message });
   }
 });
 

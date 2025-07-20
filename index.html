@@ -71,18 +71,16 @@
         text-align: left;
         color: #444;
       }
-      iframe {
-        width: 100%;
-        height: 250px;
-        margin-top: 10px;
-        border-radius: 8px;
-      }
       #loading {
         text-align: center;
         padding: 10px;
         color: #888;
         font-style: italic;
         display: none;
+      }
+      audio {
+        width: 100%;
+        margin-top: 10px;
       }
     </style>
   </head>
@@ -103,7 +101,7 @@
 
     <script>
       const API_CHAT = "https://chat-girias-br.onrender.com/api/chat";
-      const API_VIDEO = "https://chat-girias-br.onrender.com/api/video";
+      const API_AUDIO = "https://chat-girias-br.onrender.com/api/audio";
 
       async function sendMessage() {
         const input = document.getElementById("userInput");
@@ -127,25 +125,23 @@
           const { message } = await res1.json();
           appendMessage("bot", message);
 
-          // Agora chama o vídeo
-          appendMessage("bot", "⏳ Gerando vídeo...");
-          console.log("🎥 Enviando para /api/video");
-
-          const res2 = await fetch(API_VIDEO, {
+          // 🔊 Solicita áudio
+          console.log("🔊 Enviando para /api/audio");
+          const res2 = await fetch(API_AUDIO, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ script: message }),
+            body: JSON.stringify({ text: message }),
           });
 
-          const { videoUrl } = await res2.json();
+          const { audioUrl } = await res2.json();
 
-          if (videoUrl) {
+          if (audioUrl) {
             appendMessage(
               "bot",
-              `<iframe src="${videoUrl}" allow="autoplay" allowfullscreen></iframe>`
+              `<audio controls src="${audioUrl}"></audio>`
             );
           } else {
-            appendMessage("bot", "⚠️ O vídeo não ficou pronto.");
+            appendMessage("bot", "⚠️ Não consegui gerar o áudio.");
           }
         } catch (err) {
           console.error("❌ Erro geral:", err.message);
