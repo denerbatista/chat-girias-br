@@ -4,7 +4,6 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Chat de Gírias Brasileiras</title>
-    <link rel="manifest" href="manifest.json" />
     <style>
       body {
         font-family: Arial, sans-serif;
@@ -79,19 +78,6 @@
         font-style: italic;
         display: none;
       }
-      @media (max-width: 480px) {
-        .chat-container {
-          margin: 10px;
-          height: 95vh;
-        }
-        .chat-input input {
-          font-size: 14px;
-        }
-        .chat-input button {
-          font-size: 14px;
-          padding: 0 10px;
-        }
-      }
     </style>
   </head>
   <body>
@@ -119,114 +105,46 @@
 
         appendMessage("user", text);
         input.value = "";
-
-        // Mostrar loading
         document.getElementById("loading").style.display = "block";
 
-        const prompt = `
-Analise a palavra "${text}" e responda de acordo com os seguintes critérios:
-
-1. Verifique se é uma **gíria brasileira**. Se for, forneça:
-   - Um significado claro e informal
-   - A possível origem ou região onde é mais usada
-   - Um link de vídeo explicativo do YouTube com incorporação permitida (embed liberado). Se não encontrar vídeo válido, escreva "Nenhum vídeo disponível".
-
-2. Se a palavra for **uma palavra comum do português**, diga claramente que **não é uma gíria**, mas forneça o seu significado formal.
-
-3. Se a palavra **não existir ou for inválida**, diga claramente que **não é reconhecida como uma palavra válida da língua portuguesa**.
-
-Responda sempre de forma clara e separada por seções:
-- Tipo: (Gíria / Palavra comum / Palavra inválida)
-- Significado: ...
-- Origem: ...
-- Vídeo: ...
-`;
+        const prompt = `Explique de forma descontraída e informal o significado da gíria brasileira: "${text}". Inclua um exemplo e mantenha um tom divertido.`;
 
         try {
           const response = await fetch(API_ENDPOINT, {
             method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
+            headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ prompt }),
           });
 
-          if (!response.ok) {
-            throw new Error(`Erro ${response.status}: ${response.statusText}`);
-          }
-
           const data = await response.json();
-          let reply;
-          if (data.choices?.[0]?.message?.content) {
-            reply = data.choices[0].message.content;
-          } else if (data.error?.message) {
-            reply = `❌ Erro da API: ${data.error.message}`;
-          } else {
-            reply = "❌ Erro desconhecido.";
+
+          if (data.message) {
+            appendMessage("bot", data.message);
           }
 
-          appendMessage("bot", reply);
+          if (data.videoUrl) {
+            appendMessage(
+              "bot",
+              `<iframe src="${data.videoUrl}" allow="autoplay" allowfullscreen></iframe>`
+            );
+          } else {
+            appendMessage("bot", "⚠️ Nenhum vídeo gerado.");
+          }
         } catch (error) {
-          console.error("❌ Erro no fetch:", error);
-          appendMessage("bot", `❌ Erro na requisição: ${error.message}`);
+          console.error("Erro:", error);
+          appendMessage("bot", `❌ Erro: ${error.message}`);
         } finally {
-          // Esconder loading
           document.getElementById("loading").style.display = "none";
         }
       }
 
-      function appendMessage(role, text) {
+      function appendMessage(role, content) {
         const messages = document.getElementById("messages");
         const div = document.createElement("div");
         div.className = `message ${role}`;
-        div.innerHTML = formatText(text);
+        div.innerHTML = content;
         messages.appendChild(div);
         messages.scrollTop = messages.scrollHeight;
-      }
-
-      function formatText(text) {
-        const youtubeRegex =
-          /(https?:\/\/(?:www\.)?(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]+))/;
-        const match = text.match(youtubeRegex);
-
-        let formatted = text
-          .replace("- Significado:", "<strong>🧠 Significado:</strong>")
-          .replace("- Origem:", "<strong>📍 Origem:</strong>")
-          .replace("- Vídeo:", "<strong>🎬 Vídeo:</strong>");
-
-        if (match) {
-          const videoId = match[2];
-          const embed = `
-      <div style="margin-top: 10px">
-        <iframe 
-          width="100%" 
-          height="250" 
-          src="https://www.youtube.com/embed/${videoId}" 
-          frameborder="0" 
-          allowfullscreen>
-        </iframe>
-      </div>`;
-          formatted = formatted.replace(match[0], "") + embed;
-        }
-
-        return `<div style="line-height: 1.6; font-size: 16px; font-family: sans-serif;">${formatted}</div>`;
-      }
-    </script>
-    <script>
-      if ("serviceWorker" in navigator) {
-        window.addEventListener("load", () => {
-          navigator.serviceWorker
-            .register("./service-worker.js")
-            .then((registration) => {
-              console.log(
-                "✅ Service Worker registrado com sucesso:",
-                registration.scope
-              );
-            })
-            .catch((err) => {
-              console.error("❌ Falha ao registrar o Service Worker:", err);
-            });
-        });
       }
     </script>
   </body>
