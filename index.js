@@ -20,14 +20,41 @@ app.use(bodyParser.json());
 const PORT = process.env.PORT || 3001;
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 
-// Para funcionar com ES Modules
+// 🔁 Suporte para __dirname em ES Modules
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-// 🧠 Rota de geração de texto (sem alterações)
+// 📦 Arquivo de cache
+const CACHE_FILE = path.join(__dirname, "cache", "responses.json");
+
+// 🔧 Inicializa pasta e cache se não existir
+fs.mkdirSync(path.dirname(CACHE_FILE), { recursive: true });
+if (!fs.existsSync(CACHE_FILE)) {
+  fs.writeFileSync(CACHE_FILE, JSON.stringify({}));
+}
+
+// 📂 Funções de leitura e escrita no cache
+function loadCache() {
+  const data = fs.readFileSync(CACHE_FILE);
+  return JSON.parse(data);
+}
+
+function saveToCache(prompt, message, fileName) {
+  const cache = loadCache();
+  cache[prompt] = { message, fileName };
+  fs.writeFileSync(CACHE_FILE, JSON.stringify(cache, null, 2));
+}
+
+// 🧠 Geração de texto com OpenAI
 app.post("/api/chat", async (req, res) => {
   const { prompt } = req.body;
   console.log("🔹 [CHAT] Prompt recebido:", prompt);
+
+  const cache = loadCache();
+  if (cache[prompt]?.message) {
+    console.log("♻️ [CHAT] Resposta encontrada no cache.");
+    return res.json({ message: cache[prompt].message });
+  }
 
   try {
     const response = await fetch("https://api.openai.com/v1/chat/completions", {
@@ -59,10 +86,17 @@ app.post("/api/chat", async (req, res) => {
   }
 });
 
-// 🔊 Rota de geração de áudio com GTTS
+// 🔊 Geração de áudio com GTTS e cache
 app.post("/api/audio", async (req, res) => {
   const { text } = req.body;
   console.log("🔹 [AUDIO] Texto recebido para áudio:", text);
+
+  const cache = loadCache();
+  const prompt = Object.keys(cache).find((key) => cache[key].message === text);
+  if (prompt && cache[prompt]?.fileName) {
+    console.log("♻️ [AUDIO] Áudio encontrado no cache:", cache[prompt].fileName);
+    return res.json({ audioUrl: `/audios/${cache[prompt].fileName}` });
+  }
 
   try {
     const fileName = `audio-${uuidv4()}.mp3`;
@@ -77,16 +111,21 @@ app.post("/api/audio", async (req, res) => {
         console.error("❌ [AUDIO] Erro ao salvar MP3:", err);
         return res.status(500).json({ error: "Erro ao salvar áudio." });
       }
-      console.log("✅ [AUDIO] Áudio salvo:", filePath);
+
+      if (prompt) {
+        saveToCache(prompt, text, fileName);
+      }
+
+      console.log("✅ [AUDIO] Áudio gerado e salvo:", fileName);
       return res.json({ audioUrl: `/audios/${fileName}` });
     });
   } catch (error) {
-    console.error("❌ [AUDIO] Erro ao gerar áudio:", error);
+    console.error("❌ [AUDIO] Erro:", error);
     return res.status(500).json({ error: error.message });
   }
 });
 
-// 🗂 Servir os áudios salvos
+// 🌐 Servir arquivos estáticos de áudio
 app.use("/audios", express.static(path.join(__dirname, "audios")));
 
 app.listen(PORT, () => {
