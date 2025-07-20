@@ -110,6 +110,8 @@
         const prompt = `Explique de forma descontraída e informal o significado da gíria brasileira: "${text}". Inclua um exemplo e mantenha um tom divertido.`;
 
         try {
+          console.log("📤 Enviando prompt:", prompt);
+
           const response = await fetch(API_ENDPOINT, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -117,22 +119,23 @@
           });
 
           const data = await response.json();
+          console.log("📥 Resposta recebida:", data);
 
           if (data.message) {
             appendMessage("bot", data.message);
           }
 
           if (data.videoUrl) {
-            appendMessage("bot", "🎬 Gerando vídeo, aguarde...");
+            appendMessage("bot", "🎬 Vídeo gerado com sucesso:");
             appendMessage(
               "bot",
               `<iframe src="${data.videoUrl}" allow="autoplay" allowfullscreen></iframe>`
             );
           } else {
-            appendMessage("bot", "⚠️ O vídeo não pôde ser carregado.");
+            appendMessage("bot", "⚠️ A explicação foi gerada, mas o vídeo não ficou pronto.");
           }
         } catch (error) {
-          console.error("Erro:", error);
+          console.error("❌ Erro:", error);
           appendMessage("bot", `❌ Erro: ${error.message}`);
         } finally {
           document.getElementById("loading").style.display = "none";

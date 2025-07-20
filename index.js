@@ -13,23 +13,30 @@ const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const DID_API_KEY = process.env.DID_API_KEY;
 
 const waitForVideoReady = async (id, maxRetries = 10, interval = 3000) => {
+  console.log("⏳ Iniciando verificação de status do vídeo D-ID...");
   for (let attempt = 0; attempt < maxRetries; attempt++) {
-    const checkRes = await fetch(`https://api.d-id.com/talks/${id}`, {
-      headers: {
-        Authorization: `Bearer ${DID_API_KEY}`,
-      },
-    });
+    console.log(`🔁 Tentativa ${attempt + 1} de ${maxRetries}`);
+    try {
+      const checkRes = await fetch(`https://api.d-id.com/talks/${id}`, {
+        headers: {
+          Authorization: `Bearer ${DID_API_KEY}`,
+        },
+      });
 
-    const data = await checkRes.json();
+      const data = await checkRes.json();
+      console.log("📦 Status atual:", data.status);
 
-    if (data?.status === "done") {
-      return `https://studio.d-id.com/player/${id}`;
+      if (data?.status === "done") {
+        return `https://studio.d-id.com/player/${id}`;
+      }
+    } catch (err) {
+      console.warn("⚠️ Erro ao verificar status do vídeo:", err.message);
     }
 
     await new Promise((resolve) => setTimeout(resolve, interval));
   }
 
-  return null; // Falhou após N tentativas
+  return null;
 };
 
 app.post("/api/chat", async (req, res) => {
@@ -40,7 +47,9 @@ app.post("/api/chat", async (req, res) => {
   }
 
   try {
-    // 1. Obter explicação do GPT
+    console.log("💬 Recebido prompt:", prompt);
+
+    // Etapa 1: Obter resposta do GPT
     const openaiRes = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -58,7 +67,9 @@ app.post("/api/chat", async (req, res) => {
     const openaiData = await openaiRes.json();
     const explanation = openaiData.choices?.[0]?.message?.content || "Não consegui gerar explicação.";
 
-    // 2. Criar vídeo na D-ID
+    console.log("✅ Resposta da OpenAI:", explanation);
+
+    // Etapa 2: Criar vídeo D-ID
     const didRes = await fetch("https://api.d-id.com/talks", {
       method: "POST",
       headers: {
@@ -81,10 +92,18 @@ app.post("/api/chat", async (req, res) => {
     const didData = await didRes.json();
     const videoId = didData?.id;
 
+    console.log("🎥 ID do vídeo criado:", videoId);
+
     let videoUrl = null;
 
     if (videoId) {
       videoUrl = await waitForVideoReady(videoId);
+    }
+
+    if (!videoUrl) {
+      console.warn("⚠️ Vídeo não ficou pronto a tempo.");
+    } else {
+      console.log("✅ Vídeo disponível em:", videoUrl);
     }
 
     res.json({
@@ -92,12 +111,12 @@ app.post("/api/chat", async (req, res) => {
       videoUrl,
     });
   } catch (err) {
-    console.error("Erro no backend:", err);
+    console.error("❌ Erro geral:", err);
     res.status(500).json({ error: "Erro interno", detail: err.message });
   }
 });
 
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {
-  console.log(`✅ Servidor rodando em http://localhost:${PORT}`);
+  console.log(`🚀 Servidor rodando em http://localhost:${PORT}`);
 });
