@@ -83,6 +83,7 @@
         margin-top: 10px;
       }
     </style>
+    <script src="https://unpkg.com/@lottiefiles/lottie-player@latest/dist/lottie-player.js"></script>
   </head>
   <body>
     <div class="chat-container">
@@ -98,9 +99,21 @@
         <button onclick="sendMessage()">Enviar</button>
       </div>
     </div>
+    <lottie-player
+      id="talking-character"
+      src="talking-character.lottie"
+      background="transparent"
+      speed="1"
+      style="width: 300px; height: 300px; margin: auto"
+      autoplay
+      loop
+    ></lottie-player>
+
     <script>
       const API_CHAT = "https://chat-girias-br.onrender.com/api/chat";
       const API_AUDIO = "https://chat-girias-br.onrender.com/api/audio";
+      const player = document.getElementById("talking-character");
+      const audio = new Audio();
 
       async function sendMessage() {
         const input = document.getElementById("userInput");
@@ -115,8 +128,6 @@
 
         try {
           appendMessage("bot", "🤖 Gerando explicação com IA...");
-          console.log("📤 Enviando para /api/chat:", prompt);
-
           const res1 = await fetch(API_CHAT, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -124,17 +135,11 @@
           });
 
           const data1 = await res1.json();
-          console.log("✅ Resposta de /api/chat:", data1);
-
           const message = data1?.message;
-          if (!message) {
-            throw new Error("Resposta da IA está vazia.");
-          }
+          if (!message) throw new Error("Resposta da IA está vazia.");
 
           appendMessage("bot", message);
           appendMessage("bot", "🔊 Gerando áudio...");
-
-          console.log("🎤 Enviando texto para /api/audio:", message);
 
           const res2 = await fetch(API_AUDIO, {
             method: "POST",
@@ -142,17 +147,17 @@
             body: JSON.stringify({ text: message }),
           });
 
-          if (!res2.ok) {
-            throw new Error("Erro ao gerar áudio. Status: " + res2.status);
+          const data2 = await res2.json();
+          const audioUrl = data2?.audioUrl;
+
+          if (audioUrl) {
+            appendMessage("bot", `<audio controls src="${audioUrl}"></audio>`);
+            playAudioAndAnimate(audioUrl);
+          } else {
+            appendMessage("bot", "⚠️ O áudio não foi gerado.");
           }
-
-          const blob = await res2.blob();
-          const audioUrl = URL.createObjectURL(blob);
-          console.log("🎧 Áudio recebido:", audioUrl);
-
-          appendMessage("bot", `<audio controls src="${audioUrl}"></audio>`);
         } catch (err) {
-          console.error("❌ Erro geral:", err);
+          console.error("❌ Erro:", err);
           appendMessage("bot", `❌ Erro: ${err.message}`);
         } finally {
           document.getElementById("loading").style.display = "none";
@@ -166,6 +171,36 @@
         div.innerHTML = content;
         messages.appendChild(div);
         messages.scrollTop = messages.scrollHeight;
+      }
+
+      function playAudioAndAnimate(url) {
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        const analyser = ctx.createAnalyser();
+        analyser.fftSize = 256;
+
+        audio.src = url;
+        const source = ctx.createMediaElementSource(audio);
+        source.connect(analyser);
+        analyser.connect(ctx.destination);
+
+        const dataArray = new Uint8Array(analyser.frequencyBinCount);
+
+        function animateMouth() {
+          analyser.getByteFrequencyData(dataArray);
+          const volume =
+            dataArray.reduce((a, b) => a + b, 0) / dataArray.length;
+
+          // Aumenta ou reduz a velocidade da animação baseado no volume
+          if (player) {
+            player.setSpeed(volume > 10 ? 1 : 0.3);
+          }
+
+          requestAnimationFrame(animateMouth);
+        }
+
+        ctx.resume();
+        audio.play();
+        animateMouth();
       }
     </script>
   </body>
