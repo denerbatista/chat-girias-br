@@ -7,7 +7,8 @@ import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 import { dirname } from "path";
-import { v4 as uuidv4 } from "uuid";
+import pkg from "uuid";
+const { v4: uuidv4 } = pkg;
 import gTTS from "gtts";
 
 dotenv.config();
